@@ -38,10 +38,14 @@ import {
   listManagedImageOriginalMediaIdsInDatabase,
 } from "../gateway/managed-image-record-store.kernel.js";
 import { readDeferredPluginMigrations } from "../infra/deferred-plugin-migrations.js";
-import { countFailedDeliveryQueueEntriesInDatabase } from "../infra/delivery-queue-sqlite.kernel.js";
+import {
+  countFailedDeliveryQueueEntriesInDatabase,
+  pruneExpiredDeliveryQueueTombstonesInDatabase,
+} from "../infra/delivery-queue-sqlite.kernel.js";
 import * as deviceAuth from "../infra/device-auth-store.kernel.js";
 import { executeDeliveryQueueAck } from "../infra/outbound/delivery-queue-ack.worker.js";
 import { executeDeliveryQueueEnqueue } from "../infra/outbound/delivery-queue-enqueue.worker.js";
+import { loadDeliveryQueueMediaRetentionSnapshotInDatabase } from "../infra/outbound/delivery-queue-media-staging.kernel.js";
 import { executePendingDeliveryFailure } from "../infra/outbound/delivery-queue-pending-failure.worker.js";
 import { executePromotionCommand } from "../infra/promotions-feed.worker.js";
 import {
@@ -93,8 +97,7 @@ import {
 } from "../sessions/session-state-events.kernel.js";
 import { listWatchedSessionUpstreamLinksInDatabase } from "../sessions/session-upstream-links.kernel.js";
 import { commitSkillUploadInDatabase } from "../skills/lifecycle/upload-store-commit.js";
-import { listStoredSkillProposalEventsInDatabase } from "../skills/workshop/store-sqlite-event.js";
-import { ensureSkillWorkshopSchemaInDatabase } from "../skills/workshop/store-sqlite-schema.js";
+import * as skillWorkshop from "../skills/workshop/store.worker.js";
 import { isTaskRegistryWorkerCommand } from "../tasks/task-registry.worker-contract.js";
 import { executeTaskRegistryCommand } from "../tasks/task-registry.worker.js";
 import { ensureMeetingTranscriptsSchema } from "../transcripts/sqlite-schema.js";
@@ -379,6 +382,9 @@ export function executeSharedStateCommand(
       : read(open().db);
   }
   const database = open();
+  if (skillWorkshop.isSkillWorkshopCommand(command)) {
+    return skillWorkshop.executeSkillWorkshopCommand(command, database, context.databasePath);
+  }
   if (command.type === "deviceAuth.list") {
     return deviceAuth.readDeviceAuthTokensFromDatabase(database.db, command.input);
   }
@@ -454,6 +460,12 @@ export function executeSharedStateCommand(
   if (command.type === "deliveryQueue.countFailed") {
     return countFailedDeliveryQueueEntriesInDatabase(database);
   }
+  if (command.type === "deliveryQueue.pruneTombstones") {
+    return pruneExpiredDeliveryQueueTombstonesInDatabase(database);
+  }
+  if (command.type === "deliveryQueue.mediaRetentionSnapshot") {
+    return loadDeliveryQueueMediaRetentionSnapshotInDatabase(database, command.input);
+  }
   if (
     command.type === "sessionDelivery.enqueue" ||
     command.type === "sessionDelivery.enqueueClaimed" ||
@@ -481,10 +493,6 @@ export function executeSharedStateCommand(
   }
   if (command.type === "deliveryQueue.failPending") {
     return executePendingDeliveryFailure(command.input, writeOptions);
-  }
-  if (command.type === "workshop.events.list") {
-    ensureSkillWorkshopSchemaInDatabase(database, writeOptions);
-    return listStoredSkillProposalEventsInDatabase(database.db, command.input);
   }
   if (command.type === "skillUploads.commit") {
     return commitSkillUploadInDatabase(command.input, writeOptions);

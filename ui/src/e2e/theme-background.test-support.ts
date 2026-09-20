@@ -54,42 +54,12 @@ export async function readArtwork(shell: Locator) {
       throw new Error(`Expected one bundled app image, received ${style.backgroundImage}`);
     }
     const url = new URL(match[1], document.baseURI);
-    if (
-      !(url.protocol === "data:" && url.href.startsWith("data:image/svg+xml")) &&
-      !(url.origin === location.origin && url.pathname.endsWith(".svg"))
-    ) {
-      throw new Error(`App artwork must be a bundled SVG, received ${url.href}`);
+    if (url.origin !== location.origin || !url.pathname.endsWith(".webp")) {
+      throw new Error(`App artwork must be a bundled WebP, received ${url.href}`);
     }
     const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Cannot load bundled artwork: ${response.status}`);
-    }
-    const svg = new DOMParser().parseFromString(await response.text(), "image/svg+xml");
-    // Static bundled decoration may reference its own gradients/masks, never
-    // executable content, animation, stylesheets, or external resources.
-    if (
-      svg.querySelector(
-        "parsererror, script, foreignObject, image, style, animate, animateMotion, animateTransform, set",
-      )
-    ) {
-      throw new Error("App artwork must remain static, self-contained SVG");
-    }
-    for (const node of svg.querySelectorAll("*")) {
-      for (const attribute of node.attributes) {
-        if (
-          /^on/iu.test(attribute.name) ||
-          (/href$/iu.test(attribute.name) && !attribute.value.startsWith("#")) ||
-          [...attribute.value.matchAll(/url\(([^)]*)\)/giu)].some(
-            ([, reference]) =>
-              !reference
-                ?.trim()
-                .replace(/^["']|["']$/gu, "")
-                .startsWith("#"),
-          )
-        ) {
-          throw new Error("App artwork contains an executable or external reference");
-        }
-      }
+    if (!response.ok || response.headers.get("content-type")?.split(";")[0] !== "image/webp") {
+      throw new Error(`Cannot load bundled WebP artwork: ${response.status}`);
     }
     const image = new Image();
     image.src = url.href;

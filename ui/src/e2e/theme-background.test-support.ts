@@ -298,7 +298,12 @@ export async function expectMobileComposer(composer: Locator) {
   const layout = await composer.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     const textarea = element.querySelector("textarea");
-    const action = element.querySelector<HTMLButtonElement>(".chat-send-btn");
+    // Chat keeps a hidden desktop action beside the mobile primary action.
+    const action = [
+      ...element.querySelectorAll<HTMLButtonElement>(
+        ".chat-send-btn--send, .new-session-page__start-submit",
+      ),
+    ].find((button) => button.getClientRects().length > 0);
     if (!textarea || !action) {
       throw new Error("Expected the translucent composer to retain its input and primary action");
     }

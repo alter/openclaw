@@ -108,6 +108,8 @@ suite.define(() => {
       },
       async ({ context, page }) => {
         const gateway = await installMockGateway(page, {
+          agentModel: "example/demo",
+          models: [{ id: "demo", name: "Demo model", provider: "example" }],
           methodResponses: { "config.get": themeConfig("claw", "dark") },
           historyMessages: [
             {

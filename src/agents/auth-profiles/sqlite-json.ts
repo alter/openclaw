@@ -46,7 +46,7 @@ export function getAgentAuthProfileKysely(db: DatabaseSync) {
   return getNodeSqliteKysely<AgentAuthProfileDatabase>(db);
 }
 
-export function getSharedAuthProfileKysely(db: DatabaseSync) {
+function getSharedAuthProfileKysely(db: DatabaseSync) {
   return getNodeSqliteKysely<SharedAuthProfileDatabase>(db);
 }
 

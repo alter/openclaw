@@ -107,11 +107,10 @@ export async function prepareAndAdmitChatSend(
   if (!shouldAdmit) {
     return undefined;
   }
-  const nativeRestriction = await prepareChatSendNativeRuntimeRestriction({
+  const nativeRestriction = prepareChatSendNativeRuntimeRestriction({
     request: normalizedRequest.value,
     session: preparedSession.value,
     client,
-    assertCurrent,
   });
   if (nativeRestriction) {
     respond(false, undefined, nativeRestriction);

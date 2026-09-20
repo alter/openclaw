@@ -278,7 +278,6 @@ vi.mock("../session-utils.js", async () => {
       : {
           sessionId: mockState.sessionIdsByKey.get(rawKey) ?? mockState.sessionId,
           sessionFile: mockState.transcriptPath,
-          agentRuntimeOverride: "openclaw",
           ...mockState.sessionEntry,
         };
     const cfg = {
@@ -673,7 +672,6 @@ async function createSqliteTranscriptFixture(prefix: string) {
   const { dir } = createFixturePaths(prefix);
   await replaceSessionEntry(sessionEntryScope(), {
     sessionId: mockState.sessionId,
-    agentRuntimeOverride: "openclaw",
     updatedAt: 1,
   });
   return dir;

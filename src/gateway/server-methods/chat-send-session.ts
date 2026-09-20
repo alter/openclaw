@@ -1,9 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import type { ErrorShape } from "../../../packages/gateway-protocol/src/index.js";
-import { resolveAgentWorkspaceDir, resolveSessionAgentId } from "../../agents/agent-scope.js";
+import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { getRegisteredAgentHarness } from "../../agents/harness/registry.js";
-import { ensureSelectedAgentHarnessPlugin } from "../../agents/harness/runtime-plugin.js";
 import { resolveProviderIdForAuth } from "../../agents/provider-auth-aliases.js";
 import { resolveEffectiveAgentRuntime } from "../../agents/thinking-runtime.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
@@ -16,7 +15,6 @@ import { buildSessionCreationStamp } from "../../config/sessions/session-entry-p
 import type { SessionEntry } from "../../config/sessions/types.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { measureDiagnosticsTimelineSpanSync } from "../../infra/diagnostics-timeline.js";
-import { requireActivePluginRegistry } from "../../plugins/runtime.js";
 import { isIncognitoSessionKey } from "../../routing/session-key.js";
 import { resolveMissingAgentHarnessSessionError } from "../../sessions/agent-harness-session-key.js";
 import { assertPreparedSkillLibrarySelection } from "../../skills/library/selection.js";
@@ -272,12 +270,11 @@ export type PreparedChatSendSession = Extract<
 >["value"];
 
 /** Refuse before send admission so confirmation can retain the unsent composer. */
-export async function prepareChatSendNativeRuntimeRestriction(params: {
+export function prepareChatSendNativeRuntimeRestriction(params: {
   request: NormalizedChatSendRequest;
   session: PreparedChatSendSession;
   client: GatewayRequestHandlerOptions["client"];
-  assertCurrent?: () => void;
-}): Promise<ErrorShape | undefined> {
+}): ErrorShape | undefined {
   const { request, session, client } = params;
   const { entry, cfg, agentId, sessionKey, resolvedSessionModel } = session;
   if (
@@ -299,21 +296,8 @@ export async function prepareChatSendNativeRuntimeRestriction(params: {
   if (runtime === "openclaw") {
     return undefined;
   }
-  let harness = getRegisteredAgentHarness(runtime)?.harness;
-  if (!harness) {
-    await ensureSelectedAgentHarnessPlugin({
-      config: cfg,
-      agentId,
-      sessionKey,
-      workspaceDir: entry.spawnedWorkspaceDir ?? resolveAgentWorkspaceDir(cfg, agentId),
-      provider: resolvedSessionModel.provider,
-      modelId: resolvedSessionModel.model,
-      agentHarnessRuntimeOverride: runtime,
-      pluginRegistry: requireActivePluginRegistry(),
-    });
-    params.assertCurrent?.();
-    harness = getRegisteredAgentHarness(runtime)?.harness;
-  }
+  // Availability and implicit-runtime fallback belong to the execution selector.
+  const harness = getRegisteredAgentHarness(runtime)?.harness;
   if (!harness || harness.executionEnvironment !== "host-only") {
     return undefined;
   }

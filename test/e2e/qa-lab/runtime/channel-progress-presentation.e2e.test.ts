@@ -605,11 +605,10 @@ describe("channel progress presentation through an isolated Gateway", () => {
         configured.channels!.slack!.streaming = { mode: "partial", nativeTransport: false };
         const modelProvider = configured.models!.providers!["mock-openai"]!;
         modelProvider.api = "openai-completions";
-        modelProvider.models = modelProvider.models.map((model) => ({
-          ...model,
-          api: "openai-completions",
-          reasoning: false,
-        }));
+        for (const model of modelProvider.models) {
+          model.api = "openai-completions";
+          model.reasoning = false;
+        }
         return configured;
       },
     });

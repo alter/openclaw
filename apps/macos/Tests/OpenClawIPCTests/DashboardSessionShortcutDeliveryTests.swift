@@ -8,7 +8,7 @@ import WebKit
 @MainActor
 struct DashboardSessionShortcutDeliveryTests {
     @Test(arguments: [("o", UInt16(31)), ("a", UInt16(0))], ["body", "composer"])
-    func `session chords reach the focused dashboard body and composer through AppKit`(
+    func `session chords reach the focused body and composer through the dashboard window`(
         chord: (key: String, keyCode: UInt16), target: String) async throws
     {
         _ = AppKitTestSupport.application
@@ -36,7 +36,7 @@ struct DashboardSessionShortcutDeliveryTests {
             windowAutosaveName: "", requestBrowserProfileImportOffer: { _ in false })
         defer { controller.closeDashboard() }
         controller.show(url: server.url(), auth: auth)
-        try await self.waitUntil {
+        try await self.waitUntil("dashboard document readiness") {
             !controller.webView.isLoading && controller.canDeliverNativeCommands
         }
         let window = try #require(controller.window)
@@ -62,11 +62,13 @@ struct DashboardSessionShortcutDeliveryTests {
             charactersIgnoringModifiers: chord.key.uppercased(),
             isARepeat: false,
             keyCode: chord.keyCode))
-        // Use ordinary AppKit dispatch, including its key-equivalent and responder routing.
-        // Never call WebKit keyDown directly or synthesize a DOM event. This still does not
-        // exercise physical input or install the full SwiftUI application menu.
-        NSApp.sendEvent(event)
-        try await self.waitUntil {
+        // The accessory test runner has no app event loop or stable global key window.
+        // Keep key-equivalent and responder dispatch on this owned window, as the close-shortcut
+        // tests do. This covers neither NSApplication/menu dispatch nor physical keyboard input.
+        if !window.performKeyEquivalent(with: event) {
+            window.sendEvent(event)
+        }
+        try await self.waitUntil("\(chord.key) delivery to \(target)") {
             try await !self.keyEvents(in: controller.webView).isEmpty
         }
         let observed = try await self.keyEvents(in: controller.webView)
@@ -94,10 +96,16 @@ struct DashboardSessionShortcutDeliveryTests {
         return try JSONDecoder().decode([KeyObservation].self, from: Data(json.utf8))
     }
 
-    private func waitUntil(_ condition: () async throws -> Bool) async throws {
+    private struct WaitFailure: Error, CustomStringConvertible {
+        let description: String
+    }
+
+    private func waitUntil(_ stage: String, _ condition: () async throws -> Bool) async throws {
         let deadline = ContinuousClock.now + .seconds(5)
         while try await !condition() {
-            guard ContinuousClock.now < deadline else { throw URLError(.timedOut) }
+            guard ContinuousClock.now < deadline else {
+                throw WaitFailure(description: "Timed out waiting for \(stage)")
+            }
             try await Task.sleep(for: .milliseconds(10))
         }
     }

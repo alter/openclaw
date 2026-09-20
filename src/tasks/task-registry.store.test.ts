@@ -26,6 +26,7 @@ import {
 } from "../state/openclaw-state-db.js";
 import { resolveOpenClawStateSqlitePath } from "../state/openclaw-state-db.paths.js";
 import { captureOpenClawStateWorkerContext } from "../state/openclaw-state-worker-context.js";
+import type { OpenClawStateWorkerContext } from "../state/openclaw-state-worker-context.types.js";
 import {
   createOpenClawTestState,
   type OpenClawTestState,
@@ -1623,8 +1624,9 @@ describe("task-registry store runtime", () => {
       const deleteTaskWithDeliveryState = vi.fn((taskId: string) => {
         sqliteState.delete(taskId);
       });
-      const listTasksForOwnerKey = vi.fn(async (key: string) =>
-        [...sqliteState.values()].filter((task) => task.ownerKey === key),
+      const listTasksForOwnerKey = vi.fn(
+        async (_context: OpenClawStateWorkerContext, key: string) =>
+          [...sqliteState.values()].filter((task) => task.ownerKey === key),
       );
 
       configureTaskRegistryRuntime({

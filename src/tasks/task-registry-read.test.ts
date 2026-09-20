@@ -3,6 +3,7 @@ import * as timers from "node:timers/promises";
 import { expectDefined } from "@openclaw/normalization-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDeferred, withTestTimeout } from "../../test/helpers/promise.js";
+import { buildRuntimeFactsContext } from "../agents/runtime-facts-prompt.js";
 import { subagentRuns } from "../agents/subagents/registry/subagent-registry-memory.js";
 import { settleRequesterTurnAfterSessionSpawns } from "../agents/subagents/registry/subagent-registry-requester-yield.js";
 import type { SubagentRunRecord } from "../agents/subagents/registry/subagent-registry.types.js";
@@ -39,7 +40,11 @@ import {
   withReadState,
 } from "./task-registry-read.test-support.js";
 import { linkTaskToFlowById } from "./task-registry-record-api.js";
-import { tasks, taskProgressBatches } from "./task-registry-state.js";
+import {
+  invalidateTaskRegistryProjection,
+  tasks,
+  taskProgressBatches,
+} from "./task-registry-state.js";
 import {
   configureTaskRegistryRuntime,
   getTaskRegistryStore,
@@ -134,6 +139,61 @@ function createReadProgressBatch() {
 }
 
 describe("task registry read preparation", () => {
+  it.each(["owner lookup", "media prompt"] as const)(
+    "reads canonical owner facts despite unrelated projection churn for %s",
+    async (surface) => {
+      await withReadState(async () => {
+        const task = createTaskFixture("cli", {
+          runId: "canonical-owner-read",
+          task: "Generate video",
+          taskKind: "video_generation",
+          sourceId: "video_generate:test",
+          agentId: "main",
+          notifyPolicy: "silent",
+        });
+        const unrelated = createTaskFixture("cli", {
+          runId: "unrelated-owner-read",
+          ownerKey: "agent:main:other",
+          task: "Unrelated work",
+          notifyPolicy: "silent",
+        });
+        await prepareTaskRegistryRead();
+        const store = getTaskRegistryStore();
+        const loadSnapshot = store.loadMutationSnapshotAsync.bind(store);
+        let updates = 0;
+        vi.spyOn(store, "loadMutationSnapshotAsync").mockImplementation(async (...args) => {
+          const snapshot = await loadSnapshot(...args);
+          expect(
+            updateTask(unrelated.taskId, { task: `Unrelated update ${++updates}` }),
+          ).not.toBeNull();
+          invalidateTaskRegistryProjection();
+          return snapshot;
+        });
+        invalidateTaskRegistryProjection();
+
+        if (surface === "owner lookup") {
+          expect(await listFreshTasksForOwnerKey(task.ownerKey)).toMatchObject([
+            { taskId: task.taskId, status: "running", sourceId: "video_generate:test" },
+          ]);
+        } else {
+          expect(
+            await buildRuntimeFactsContext({
+              capabilityToolNames: new Set(["video_generate"]),
+              cfg: {},
+              sessionKey: task.ownerKey,
+              agentId: "main",
+            }),
+          ).toEqual([
+            {
+              kind: "conversation-data",
+              text: `## Media Generation Tasks\n- tool=video_generate; task=${task.taskId}; status=running; provider_json="test"`,
+            },
+          ]);
+        }
+      });
+    },
+  );
+
   it.each([
     "receipt",
     "flow follow-up",

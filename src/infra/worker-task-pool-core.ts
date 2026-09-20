@@ -23,6 +23,7 @@ import {
   joinOwnedWorkerTasks,
   type OwnedWorkerTaskSettlement,
 } from "./worker-task-pool-owned.js";
+import { closeWorkerTaskResources } from "./worker-task-pool-resources.js";
 import {
   createWorkerTaskPoolRetirement,
   type WorkerTaskPoolRetirement,
@@ -55,6 +56,7 @@ export class WorkerTaskError extends Error {
 class WorkerTaskPoolCore<Input, Output> {
   private readonly slots = new Set<Slot<Input, Output>>();
   private readonly ownedTasks = new Set<Task<Input, Output>>();
+  private readonly resourceClosures = new WeakMap<Worker, { pending: number }>();
   private readonly ownedSettlement: OwnedWorkerTaskSettlement<Input, Output> = {
     cancel: (task) => this.cancel(task, new WorkerTaskError("worker task closed", "unavailable")),
     detach: (task) => {
@@ -233,6 +235,37 @@ class WorkerTaskPoolCore<Input, Output> {
 
   retryFailedRetirements(): Promise<void> {
     return this.retirement.retryFailedRetirements();
+  }
+
+  /** Close a retained native resource without cancelling other paths' tasks. */
+  async closeResources(key?: string): Promise<void> {
+    const results = await Promise.allSettled(
+      [...this.slots].map((slot) => {
+        if (slot.retiring) {
+          return slot.retiring;
+        }
+        const worker = slot.worker;
+        if (!worker) {
+          return Promise.resolve();
+        }
+        const closure = this.resourceClosures.get(worker) ?? { pending: 0 };
+        closure.pending += 1;
+        this.resourceClosures.set(worker, closure);
+        worker.ref();
+        return closeWorkerTaskResources(worker, key).finally(() => {
+          closure.pending -= 1;
+          if (!closure.pending && !slot.task && !slot.retiring) {
+            worker.unref();
+          }
+        });
+      }),
+    );
+    const errors = results.flatMap((result) =>
+      result.status === "rejected" ? [result.reason] : [],
+    );
+    if (errors.length) {
+      throw new AggregateError(errors, "Worker resource cleanup failed");
+    }
   }
 
   /** Pause dispatch, settle current work and join native exit before restarting the queue. */
@@ -706,7 +739,9 @@ class WorkerTaskPoolCore<Input, Output> {
 
   // Reply handling restores the caller's context; idle retirement must leave it behind.
   private idle(slot: Slot<Input, Output>): void {
-    slot.worker?.unref();
+    if (slot.worker && !this.resourceClosures.get(slot.worker)?.pending) {
+      slot.worker.unref();
+    }
     const idleMs = this.options.idleTimeoutMs ?? 60_000;
     if (idleMs > 0) {
       slot.idleTimer = runInWorkerPoolContext(() =>

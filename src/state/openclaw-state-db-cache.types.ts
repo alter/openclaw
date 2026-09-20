@@ -12,7 +12,8 @@ import type {
 export type StateDatabaseLifecycle = {
   cachedDatabases: Map<string, OpenClawStateDatabase>;
   retainedDatabaseHandles: Map<DatabaseSync, StateDatabaseHandle>;
-  unregisterRetainedExitClose?: () => void;
+  idleTimers: WeakMap<DatabaseSync, ReturnType<typeof setTimeout>>;
+  unregisterExitClose?: () => void;
   cachedDataVersionStatements: WeakMap<OpenClawStateDatabase, ReturnType<DatabaseSync["prepare"]>>;
   cachedDataVersions: WeakMap<DatabaseSync, number>;
   databaseIdentities: WeakMap<DatabaseSync, DatabasePathIdentity>;

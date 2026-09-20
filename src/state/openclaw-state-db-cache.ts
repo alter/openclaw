@@ -43,6 +43,7 @@ import {
   createStateDatabaseRetainer,
   type StateDatabaseBorrowers,
 } from "./openclaw-state-db-borrow.js";
+import { createStateDatabaseIdleRetirement } from "./openclaw-state-db-cache.idle.js";
 import type { StateDatabaseLifecycle } from "./openclaw-state-db-cache.types.js";
 import {
   OPENCLAW_SQLITE_BUSY_TIMEOUT_MS,
@@ -63,7 +64,8 @@ const stateDatabaseLifecycle = resolveGlobalSingleton<StateDatabaseLifecycle>(
   () => ({
     cachedDatabases: new Map<string, OpenClawStateDatabase>(),
     retainedDatabaseHandles: new Map<DatabaseSync, StateDatabaseHandle>(),
-    unregisterRetainedExitClose: undefined,
+    idleTimers: new WeakMap(),
+    unregisterExitClose: undefined,
     // The plain owner key must not retain the statement's own native database.
     cachedDataVersionStatements: new WeakMap<
       OpenClawStateDatabase,
@@ -83,6 +85,7 @@ const stateDatabaseLifecycle = resolveGlobalSingleton<StateDatabaseLifecycle>(
 const {
   cachedDatabases,
   retainedDatabaseHandles,
+  idleTimers,
   cachedDataVersionStatements,
   cachedDataVersions,
   databaseIdentities,
@@ -91,6 +94,11 @@ const {
   terminalOpenLatch,
   asyncResources,
 } = stateDatabaseLifecycle;
+
+const touchStateDatabase = createStateDatabaseIdleRetirement(
+  stateDatabaseLifecycle,
+  retireOpenClawStateDatabaseHandle,
+);
 
 function notifyOpenClawStateDatabaseLifecycle(event: OpenClawStateDatabaseLifecycleEvent): void {
   const notification =
@@ -158,7 +166,7 @@ export function registerOpenClawStateDatabaseLifecycleListener(
 
 function retainStateDatabaseClose(database: StateDatabaseHandle): void {
   retainedDatabaseHandles.set(database.db, database);
-  stateDatabaseLifecycle.unregisterRetainedExitClose ??= registerSqliteCacheExitClose(
+  stateDatabaseLifecycle.unregisterExitClose ??= registerSqliteCacheExitClose(
     closeOpenClawStateDatabase,
   );
 }
@@ -195,6 +203,7 @@ export const {
   capture: (pathname) => asyncResources.capture(pathname),
   retire: retireOpenClawStateDatabaseHandle,
   retainFailed: retainStateDatabaseClose,
+  touch: touchStateDatabase,
 });
 
 /** Close both physical-handle owners while retaining every cleanup failure. */
@@ -202,6 +211,8 @@ function closeOpenClawStateDatabaseHandle(
   database: StateDatabaseHandle,
   options?: Parameters<OpenClawStateDatabase["walMaintenance"]["close"]>[0],
 ): unknown[] {
+  clearTimeout(idleTimers.get(database.db));
+  idleTimers.delete(database.db);
   try {
     assertStateDatabaseBorrowersReleased(borrowers.get(database.db), database.path);
   } catch (error) {
@@ -255,14 +266,14 @@ function closeOpenClawStateDatabaseHandle(
     retainStateDatabaseClose(database);
   } else {
     retainedDatabaseHandles.delete(database.db);
-    if (retainedDatabaseHandles.size === 0) {
-      stateDatabaseLifecycle.unregisterRetainedExitClose?.();
-      stateDatabaseLifecycle.unregisterRetainedExitClose = undefined;
-    }
   }
   // A failed native close retains physical custody, never a successful cache hit.
   if (cachedDatabases.get(database.path)?.db === database.db) {
     cachedDatabases.delete(database.path);
+  }
+  if (retainedDatabaseHandles.size === 0 && cachedDatabases.size === 0) {
+    stateDatabaseLifecycle.unregisterExitClose?.();
+    stateDatabaseLifecycle.unregisterExitClose = undefined;
   }
   return errors;
 }
@@ -297,6 +308,10 @@ function publishOpenClawStateDatabase(database: OpenClawStateDatabase): OpenClaw
   databaseIdentities.set(db, identity);
   runtimeFailures.recordPublishedVersion(database);
   cachedDatabases.set(pathname, database);
+  stateDatabaseLifecycle.unregisterExitClose ??= registerSqliteCacheExitClose(
+    closeOpenClawStateDatabase,
+  );
+  touchStateDatabase(database);
   openClawStateSnapshotOwners.register(database, () => cachedDatabases.get(pathname));
   ownMaintenanceStateDatabaseHandle(database);
   notifyOpenClawStateDatabaseLifecycle({ kind: "opened", database, identity });
@@ -320,6 +335,9 @@ function getCachedOpenClawStateDatabase(pathname: string): OpenClawStateDatabase
   const database = cachedDatabases.get(path.resolve(pathname));
   if (database && borrowers.get(database.db)?.retiring) {
     throw new Error(`OpenClaw state database native borrower cleanup is pending: ${pathname}`);
+  }
+  if (database) {
+    touchStateDatabase(database);
   }
   return database;
 }

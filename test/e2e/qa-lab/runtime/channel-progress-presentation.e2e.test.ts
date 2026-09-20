@@ -31,8 +31,9 @@ import { stopChildProcess } from "../../../helpers/stop-child-process.js";
 const MODEL = "mock-openai/progress-fixture";
 const FINAL_MARKER = "TOOL-PROGRESS-FINAL";
 const HEADLINE = "Checking the requested work";
-// The exec tool renders as a compact tool row on every progress surface.
+// Draft progress uses compact tool rows; native Slack uses task_update chunks.
 const toolRow = /🛠️ (?:Exec|Bash)\b/u;
+const failedToolRow = /🛠️ (?:Exec|Bash): failed\b/u;
 type WireWrite = {
   at: number;
   method: string;
@@ -1736,15 +1737,40 @@ describe("channel progress presentation through an isolated Gateway", () => {
         )
         .join("\n");
       expect(progressText).toContain(HEADLINE);
-      if (tools) {
+      if (channel === "slack" && native) {
+        const taskUpdates = progressWrites
+          .flatMap(({ body }) => readChunks(body.chunks))
+          .filter((chunk) => chunk.type === "task_update");
+        if (tools) {
+          const startedTaskIndex = taskUpdates.findIndex(
+            (chunk) =>
+              chunk.status === "in_progress" &&
+              /^(?:Exec|Bash)\b/u.test(readStringValue(chunk.title) ?? ""),
+          );
+          expect(startedTaskIndex).toBeGreaterThanOrEqual(0);
+          const startedTask = taskUpdates[startedTaskIndex];
+          expect(startedTask).toMatchObject({
+            id: expect.stringMatching(/\S/u),
+            status: "in_progress",
+          });
+          const completedTaskIndex = taskUpdates.findIndex(
+            (chunk) => chunk.id === startedTask?.id && chunk.status === "complete",
+          );
+          expect(completedTaskIndex).toBeGreaterThan(startedTaskIndex);
+        } else {
+          expect(taskUpdates).toEqual([]);
+          expect(progressText).not.toMatch(toolRow);
+        }
+      } else if (tools) {
         expect(progressText).toMatch(toolRow);
       } else {
         expect(progressText).not.toMatch(toolRow);
       }
       if (failTool) {
         if (tools) {
-          expect(progressText).toContain("exit 1");
+          expect(progressText).toMatch(failedToolRow);
         } else {
+          expect(progressText).not.toMatch(failedToolRow);
           expect(progressText).not.toContain("exit 1");
         }
       }

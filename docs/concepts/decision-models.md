@@ -18,6 +18,11 @@ meets a condition.
 model architectures and inference backends. Sharing the interface does not make
 their reasoning ability or probabilities interchangeable.
 
+The role and bundled TypeSafe AI adapter were added after released OpenClaw
+`2026.9.5`. These instructions apply to development checkouts containing those
+features and to later releases that include them. See each provider's setup
+page for its host requirements.
+
 | Role            | Typical work                                             | Result                                  |
 | --------------- | -------------------------------------------------------- | --------------------------------------- |
 | Primary model   | Conversation and agent work                              | Messages and tool calls                 |
@@ -34,8 +39,8 @@ when to evaluate evidence and what to do with the result.
 Configure the provider plugin before selecting its model:
 
 - [ONNX](/plugins/onnx) runs local CPU classifiers in a persistent subprocess.
-  Follow its candidate-package installation instructions, then explicitly download
-  the model or prepare a local export. Inference needs no hosted API credential.
+  Follow its development-checkout or compatible-package setup, then explicitly
+  download the model or prepare a local export. Inference needs no hosted API credential.
 - [TypeSafe AI](/plugins/typesafe) connects to hosted Jev inference. Enable the
   bundled plugin and configure its protected credential. Evaluations send the
   selected evidence to TypeSafe and incur its normal usage charges.
@@ -54,8 +59,8 @@ The current plugins declare these model references:
 | `typesafe/jev-1.13.0`                | Jev 1.13.0             | TypeSafe credential                                    |
 | `typesafe/jev-latest`                | Jev                    | TypeSafe credential; follows the vendor's latest model |
 
-ONNX support is currently an unpublished candidate. Its plugin page explains how
-to install the local package. The table describes the plugins' declared models,
+ONNX support is currently an unpublished candidate. Its plugin page explains
+source-checkout use and the packaged host floor. The table describes the plugins' declared models,
 not which artifacts or credentials are ready on your machine.
 
 After provider setup, merge the role selection into your configuration:

@@ -19,9 +19,31 @@ examples, and provider-neutral plugin API.
 
 ## Setup
 
-The native runtime belongs to the plugin package. It is not bundled into core.
-For an unpublished candidate, install its locally built package, then list the
-available model artifacts:
+The decision-provider API was added after released OpenClaw `2026.9.5`.
+Packaged ONNX installs require a host and plugin API of at least `2026.9.6`;
+the installer rejects `2026.9.5` before loading the plugin. The native runtime
+belongs to the plugin package and is not bundled into core.
+
+### Current development checkout
+
+Until a supporting release is available, use an OpenClaw source checkout that
+contains both the decision-provider API and `extensions/onnx`. Build that
+checkout with `pnpm install --frozen-lockfile` and `pnpm build`, then enable the
+plugin and select its model using the configuration below. Run commands from
+the checkout:
+
+```sh
+pnpm openclaw onnx models
+pnpm openclaw onnx download gliclass-edge-v3.0
+pnpm openclaw onnx probe gliclass-edge-v3.0
+```
+
+The checkout's co-versioned source plugins use the host's development API. This
+does not make a packaged plugin compatible with a released `2026.9.5` host.
+
+### Packaged installation
+
+On a compatible host, install the locally built package and prepare a model:
 
 ```sh
 openclaw plugins install npm-pack:/path/to/openclaw-onnx.tgz
@@ -29,6 +51,8 @@ openclaw onnx models
 openclaw onnx download gliclass-edge-v3.0
 openclaw onnx probe gliclass-edge-v3.0
 ```
+
+### Configuration
 
 Select the role globally or for one agent:
 

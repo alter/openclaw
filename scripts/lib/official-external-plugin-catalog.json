@@ -546,7 +546,7 @@
           "clawhubSpec": "clawhub:@openclaw/onnx",
           "npmSpec": "@openclaw/onnx",
           "defaultChoice": "npm",
-          "minHostVersion": ">=2026.9.5"
+          "minHostVersion": ">=2026.9.6"
         }
       }
     },

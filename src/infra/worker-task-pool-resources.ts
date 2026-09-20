@@ -1,9 +1,43 @@
 import { MessageChannel, type Worker } from "node:worker_threads";
 import { toErrorObject } from "@openclaw/normalization-core/error-coercion";
 import { isRecord } from "@openclaw/normalization-core/record-coerce";
+import type { Slot } from "./worker-task-pool.types.js";
+
+/** Keep each pool slot referenced until its resource cleanup settles. */
+export async function closeWorkerPoolResources<Input, Output>(
+  slots: ReadonlySet<Slot<Input, Output>>,
+  resourceClosures: WeakMap<Worker, { pending: number }>,
+  key?: string,
+): Promise<void> {
+  const results = await Promise.allSettled(
+    [...slots].map((slot) => {
+      if (slot.retiring) {
+        return slot.retiring;
+      }
+      const worker = slot.worker;
+      if (!worker) {
+        return Promise.resolve();
+      }
+      const closure = resourceClosures.get(worker) ?? { pending: 0 };
+      closure.pending += 1;
+      resourceClosures.set(worker, closure);
+      worker.ref();
+      return closeWorkerTaskResources(worker, key).finally(() => {
+        closure.pending -= 1;
+        if (!closure.pending && !slot.task && !slot.retiring) {
+          worker.unref();
+        }
+      });
+    }),
+  );
+  const errors = results.flatMap((result) => (result.status === "rejected" ? [result.reason] : []));
+  if (errors.length) {
+    throw new AggregateError(errors, "Worker resource cleanup failed");
+  }
+}
 
 /** The pool keeps the Worker referenced until its cleanup receipt or confirmed native exit. */
-export function closeWorkerTaskResources(worker: Worker, key?: string): Promise<void> {
+function closeWorkerTaskResources(worker: Worker, key?: string): Promise<void> {
   const { port1, port2 } = new MessageChannel();
   return new Promise<void>((resolve, reject) => {
     let settled = false;

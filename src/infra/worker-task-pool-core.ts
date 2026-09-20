@@ -23,7 +23,7 @@ import {
   joinOwnedWorkerTasks,
   type OwnedWorkerTaskSettlement,
 } from "./worker-task-pool-owned.js";
-import { closeWorkerTaskResources } from "./worker-task-pool-resources.js";
+import { closeWorkerPoolResources } from "./worker-task-pool-resources.js";
 import {
   createWorkerTaskPoolRetirement,
   type WorkerTaskPoolRetirement,
@@ -239,33 +239,7 @@ class WorkerTaskPoolCore<Input, Output> {
 
   /** Close a retained native resource without cancelling other paths' tasks. */
   async closeResources(key?: string): Promise<void> {
-    const results = await Promise.allSettled(
-      [...this.slots].map((slot) => {
-        if (slot.retiring) {
-          return slot.retiring;
-        }
-        const worker = slot.worker;
-        if (!worker) {
-          return Promise.resolve();
-        }
-        const closure = this.resourceClosures.get(worker) ?? { pending: 0 };
-        closure.pending += 1;
-        this.resourceClosures.set(worker, closure);
-        worker.ref();
-        return closeWorkerTaskResources(worker, key).finally(() => {
-          closure.pending -= 1;
-          if (!closure.pending && !slot.task && !slot.retiring) {
-            worker.unref();
-          }
-        });
-      }),
-    );
-    const errors = results.flatMap((result) =>
-      result.status === "rejected" ? [result.reason] : [],
-    );
-    if (errors.length) {
-      throw new AggregateError(errors, "Worker resource cleanup failed");
-    }
+    await closeWorkerPoolResources(this.slots, this.resourceClosures, key);
   }
 
   /** Pause dispatch, settle current work and join native exit before restarting the queue. */

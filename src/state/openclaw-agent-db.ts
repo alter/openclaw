@@ -698,27 +698,6 @@ export function retainOpenClawAgentDatabaseReadCandidates(
   }
 }
 
-/** Lists process-held incognito databases without opening new sentinel handles. */
-export function listOpenIncognitoAgentDatabases(): Array<{ agentId: string; storePath: string }> {
-  return [...cache.databases.values()]
-    .filter((database) => database.db.isOpen && cache.incognito.has(database))
-    .map((database) => ({ agentId: database.agentId, storePath: database.path }))
-    .toSorted(
-      (left, right) =>
-        left.agentId.localeCompare(right.agentId) || left.storePath.localeCompare(right.storePath),
-    );
-}
-
-/** Return the generation of process-held incognito database membership. */
-export function readOpenIncognitoAgentDatabaseGeneration(): number {
-  return cache.generation;
-}
-
-/** Returns whether this exact process-held database is incognito/in-memory. */
-export function isIncognitoOpenClawAgentDatabase(database: OpenClawAgentDatabase): boolean {
-  return cache.incognito.has(database);
-}
-
 /** Close and unregister one unambiguous transient agent database by filesystem identity. */
 export function disposeOpenClawAgentDatabaseByPath(
   pathname: string,
@@ -779,6 +758,9 @@ export {
   closeOpenClawAgentDatabases,
   closeOpenClawAgentDatabasesAsync,
   inspectOpenClawAgentDatabaseOwner,
+  isIncognitoOpenClawAgentDatabase,
+  listOpenIncognitoAgentDatabases,
+  readOpenIncognitoAgentDatabaseGeneration,
   settleOpenClawAgentDatabaseWorkerClose,
   type OpenClawAgentDatabaseWorkerCloseResult,
 } from "./openclaw-agent-db-lifecycle.js";

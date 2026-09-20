@@ -370,7 +370,7 @@
 }
 
 .agent-chat__composer-combobox > :is(textarea, input)::placeholder {
-  color: var(--chat-composer-tertiary);
+  color: var(--muted);
 }
 
 /* One ellipsized line while empty: long agent names otherwise wrap the

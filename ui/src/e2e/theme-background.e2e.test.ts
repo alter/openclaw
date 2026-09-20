@@ -66,7 +66,9 @@ async function changeTheme(
 }
 
 async function captureProof(page: Page, name: string, compareBefore = false) {
-  if (!captureUiProof) return;
+  if (!captureUiProof) {
+    return;
+  }
   const capture = (suffix: string) =>
     page.screenshot({
       animations: "disabled",
@@ -83,6 +85,8 @@ async function captureProof(page: Page, name: string, compareBefore = false) {
       .agent-chat__input { background: var(--chat-composer-surface) !important;
         backdrop-filter: blur(12px) saturate(1.6) !important;
         -webkit-backdrop-filter: blur(12px) saturate(1.6) !important; }
+      .agent-chat__composer-combobox > :is(textarea, input)::placeholder {
+        color: var(--chat-composer-tertiary) !important; }
     `,
     });
     try {
@@ -175,15 +179,17 @@ suite.define(() => {
               const label = `${selection.resolved}-${route.replace("/", "-")}-${viewport}`;
               const artwork = await readArtwork(shell);
               expectAppArtwork(artwork, label);
-              expect(
-                artwork.canvasContrast,
-                `${label}: muted text on app artwork`,
-              ).toBeGreaterThanOrEqual(4.5);
+              const minimumContrast = selection.family === "beacon" ? 7 : 4.5;
+              expect
+                .soft(artwork.canvasContrast, `${label}: muted text on app artwork`)
+                .toBeGreaterThanOrEqual(minimumContrast);
               if (composer) {
-                expect(
-                  artwork.composerContrast,
-                  `${label}: muted text on the translucent composer`,
-                ).toBeGreaterThanOrEqual(4.5);
+                expect
+                  .soft(
+                    artwork.composerContrast,
+                    `${label}: placeholder contrast (opaque reference ${artwork.opaqueComposerContrast})`,
+                  )
+                  .toBeGreaterThanOrEqual(minimumContrast);
               }
               if (route === "chat") {
                 expect(

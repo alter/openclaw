@@ -229,6 +229,7 @@ export async function readArtwork(shell: Locator) {
       ? minContrast(pixels, content.getBoundingClientRect(), transcriptColor)
       : null;
     let composerContrast: number | null = null;
+    let opaqueComposerContrast: number | null = null;
     if (composer) {
       const translucent = document.createElement("canvas");
       translucent.width = canvas.width;
@@ -244,6 +245,13 @@ export async function readArtwork(shell: Locator) {
       context.fillStyle = composerStyle.backgroundColor;
       context.fillRect(0, 0, translucent.width, translucent.height);
       composerContrast = minContrast(context, composer.getBoundingClientRect(), composerLabel);
+      context.fillStyle = composerStyle.getPropertyValue("--chat-composer-surface");
+      context.fillRect(0, 0, translucent.width, translucent.height);
+      opaqueComposerContrast = minContrast(
+        context,
+        composer.getBoundingClientRect(),
+        composerLabel,
+      );
     }
     return {
       backgroundColor: style.backgroundColor,
@@ -253,6 +261,7 @@ export async function readArtwork(shell: Locator) {
       canvasColor,
       canvasContrast,
       composerContrast,
+      opaqueComposerContrast,
       maxColorSpread,
       paintedPixels,
       pixels: fingerprint,

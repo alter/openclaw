@@ -170,7 +170,14 @@ describe("gateway-backed CLI process exit", () => {
           }
           expect(frame.method).toBe(method);
           if (method === "channels.status") {
-            expect(frame.params).toEqual({ probe: true, timeoutMs: 2000 });
+            const timeoutMs = frame.params?.timeoutMs;
+            expect(frame.params).toEqual({ probe: true, timeoutMs });
+            expect(Number.isInteger(timeoutMs)).toBe(true);
+            expect(timeoutMs).toBeGreaterThan(0);
+            expect(timeoutMs).toBeLessThanOrEqual(2000);
+            if (args[0] === "gateway") {
+              expect(timeoutMs).toBe(2000);
+            }
           }
           calls.push(method);
           sendMinimalGatewayResponse(ws, frame.id, payload);

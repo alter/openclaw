@@ -31,9 +31,9 @@ const tempDirs = useAutoCleanupTempDirTracker((cleanup) =>
 const fixture = resolveRuntimeWorkerUrl(gatewayDirectStopEntrypoints.forcedCronFixture);
 
 it.skipIf(process.platform === "win32").each([
-  { signal: "SIGUSR1", mode: "force" },
+  { signal: "SIGUSR2", mode: "force" },
   { signal: "SIGTERM", mode: "force" },
-  { signal: "SIGUSR1", mode: "timeout" },
+  { signal: "SIGUSR2", mode: "timeout" },
 ] as const)(
   "cancels active cron work and joins cleanup before $signal $mode restart",
   async ({ signal, mode }) => {
@@ -80,7 +80,7 @@ it.skipIf(process.platform === "win32").each([
     expect(output).not.toContain("process proof: ready:2");
     expect(child.exitCode).toBeNull();
     child.send("release");
-    if (signal === "SIGUSR1") {
+    if (signal === "SIGUSR2") {
       await waitForOutput("process proof: ready:2", 15_000);
       expect(child.kill("SIGINT")).toBe(true);
     }

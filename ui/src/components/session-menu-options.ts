@@ -12,21 +12,14 @@ import {
 } from "../lib/keyboard-shortcut-contract.ts";
 import { icons } from "./icons.ts";
 import { menuShortcutHint } from "./menu-shortcuts.ts";
-import type { SessionManagementActionKind, SessionMenuData } from "./session-menu-actions.ts";
 import { syncDropdownItemRadio } from "./web-awesome.ts";
 
-export function resolveSessionMenuShortcut(
-  kind: SessionManagementActionKind,
-  state: {
-    session: Pick<SessionMenuData, "archived">;
-    selectionCount: number;
-    archiveShortcut?: boolean;
-  },
-): KeyboardShortcutCombo | undefined {
-  return kind === "toggle-archived" &&
-    state.archiveShortcut &&
-    state.selectionCount === 1 &&
-    !state.session.archived
+export function sessionArchiveShortcut(state: {
+  session: { archived: boolean };
+  selectionCount: number;
+  archiveShortcut?: boolean;
+}): KeyboardShortcutCombo | undefined {
+  return state.archiveShortcut && state.selectionCount === 1 && !state.session.archived
     ? KEYBOARD_SHORTCUT_COMBOS.archiveSession
     : undefined;
 }

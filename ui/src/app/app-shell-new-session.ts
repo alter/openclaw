@@ -1,8 +1,18 @@
 import { readSessionMethodAccess } from "../lib/session-method-access.ts";
-import type { ShellChromeHost } from "./app-shell-chrome.ts";
+import type { ApplicationContext } from "./context.ts";
+
+export interface ShellNewSessionHost extends HTMLElement {
+  readonly context: ApplicationContext | undefined;
+  readonly onboardingMode: boolean;
+  pendingNativeNewSession: boolean;
+  openNewSession(agentId: string): void;
+}
 
 /** Native startup may queue navigation; a keyboard action belongs to the ready surface only. */
-export function openShellNewSession(host: ShellChromeHost, source: "native" | "shortcut"): boolean {
+export function openShellNewSession(
+  host: ShellNewSessionHost,
+  source: "native" | "shortcut",
+): boolean {
   const context = host.context;
   if (
     host.onboardingMode ||

@@ -16,7 +16,7 @@ import {
 import {
   renderSessionEditorOptions,
   renderSessionGroupOptions,
-  resolveSessionMenuShortcut,
+  sessionArchiveShortcut,
 } from "./session-menu-options.ts";
 import type { SessionCreatedActor, SessionOwnerOption } from "./session-owner-chip.ts";
 import { SessionOwnerMenu } from "./session-owner-menu.ts";
@@ -325,7 +325,7 @@ export class SessionMenuActions {
     options: { shortcut?: string; inline?: boolean; title?: string } = {},
   ) {
     const state = this.readState();
-    const archiveShortcut = resolveSessionMenuShortcut(kind, state);
+    const archiveShortcut = kind === "toggle-archived" ? sessionArchiveShortcut(state) : undefined;
     return html`<wa-dropdown-item
       slot=${options.inline === false ? "submenu" : nothing}
       class=${`session-menu__item${kind === "delete" ? " session-menu__item--destructive" : ""}`}

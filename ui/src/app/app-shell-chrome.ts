@@ -38,7 +38,7 @@ import {
   type DebugOverlayMode,
 } from "../pages/debug/debug-overlay-frame.ts";
 import { ShellCommandPaletteOwner } from "./app-shell-command-palette-loading.ts";
-import { openShellNewSession } from "./app-shell-new-session.ts";
+import { openShellNewSession, type ShellNewSessionHost } from "./app-shell-new-session.ts";
 import { ShellPanelOwner, type ShellPanelHost } from "./app-shell-panels.ts";
 import type { ApplicationNavigationOptions } from "./context.ts";
 import {
@@ -75,9 +75,8 @@ import { retryStaleChunkReloadWhenReachable } from "./stale-chunk-reload.ts";
 
 let nativeCommandsOwner: AbortController | undefined;
 
-export interface ShellChromeHost extends HTMLElement, ShellPanelHost {
+export interface ShellChromeHost extends ShellNewSessionHost, ShellPanelHost {
   readonly activeSessionKey: string;
-  readonly onboardingMode: boolean;
   readonly updateComplete: Promise<boolean>;
   readonly commandPaletteElement: OptionalCustomElement;
   readonly execApprovalElement: OptionalCustomElement;
@@ -88,12 +87,10 @@ export interface ShellChromeHost extends HTMLElement, ShellPanelHost {
   navDrawerTrigger: HTMLElement | null;
   nativeHistoryState: NativeHistoryState;
   commandPaletteTarget: CommandPaletteTargetDetail | undefined;
-  pendingNativeNewSession: boolean;
   requestUpdate(): void;
   closeNavDrawer(options?: { restoreFocus?: boolean }): void;
   exitSettings(): void;
   navigate(routeId: string, options?: ApplicationNavigationOptions): void;
-  openNewSession(agentId: string): void;
   chatNavigationOptions(
     face: BoardFace,
     options?: ApplicationNavigationOptions,

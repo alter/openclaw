@@ -251,7 +251,7 @@ function writeEffects(response: ServerResponse, second: boolean) {
   ]);
 }
 
-export async function runManagedRepairAuthorityBoundary(
+async function runManagedRepairAuthorityBoundary(
   runBoundary: ManagedServiceManagerBoundaryRunner,
   phase: ManagedRepairBoundary["phase"],
   revoke: boolean,
